@@ -1,68 +1,107 @@
+### Health Management APP
 from dotenv import load_dotenv
+
+load_dotenv() ## load all the environment variables
+
 import streamlit as st
 import os
 import google.generativeai as genai
 from PIL import Image
 
-# Load environment variables
-load_dotenv()
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-# Set up API key for Gemini
-api_key = os.getenv("GOOGLE_API_KEY")
-if not api_key:
-    st.error("API Key is missing. Please set GOOGLE_API_KEY in your environment.")
-else:
-    genai.configure(api_key=api_key)
+## Function to load Google Gemini Pro Vision API And get response
 
-# Function to get the response from the Gemini model
-def get_gemini_response(image_data, prompt):
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    response = model.generate_content([prompt, image_data[0]])
+def get_gemini_repsonse(input,image,prompt):
+    model=genai.GenerativeModel('gemini-2.5-flash')
+    response=model.generate_content([input,image[0],prompt])
     return response.text
 
-# Function to process the uploaded image
-def process_image(uploaded_file):
-    if uploaded_file:
-        image_bytes = uploaded_file.getvalue()
-        return [{"mime_type": uploaded_file.type, "data": image_bytes}]
+def input_image_setup(uploaded_file):
+    # Check if a file has been uploaded
+    if uploaded_file is not None:
+        # Read the file into bytes
+        bytes_data = uploaded_file.getvalue()
+
+        image_parts = [
+            {
+                "mime_type": uploaded_file.type,  # Get the mime type of the uploaded file
+                "data": bytes_data
+            }
+        ]
+        return image_parts
     else:
-        raise FileNotFoundError("No image uploaded")
+        raise FileNotFoundError("No file uploaded")
+    
+##initialize our streamlit app
 
-# Set up Streamlit app configuration
-st.set_page_config(page_title="Gemini Health App")
-st.header("Gemini Health App 🍏")
+st.set_page_config(page_title="AI Nutrition Analyzer with Gemini Vision")
 
-# Input for user-specific details and meal image upload
-user_input = st.text_input("Describe the meal or food (optional):", key="input")
-uploaded_file = st.file_uploader("Upload a meal image", type=["jpg", "jpeg", "png"])
-
-# Show the uploaded image
-if uploaded_file:
+st.header("AI Nutrition Analyzer with Gemini Vision")
+input=st.text_input("Input Prompt: ",key="input")
+uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+image=""   
+if uploaded_file is not None:
     image = Image.open(uploaded_file)
-    st.image(image, caption="Uploaded Image", use_column_width=True)
+    st.image(image, caption="Uploaded Image.", use_column_width=True)
 
-# Prompt for the Gemini model to process the image and text
-nutrition_prompt = """
-You are an experienced nutritionist. From the uploaded food image, please:
-1. Identify all the visible food items and estimate their calorie count.
-2. List each item with its estimated calorie content in the following format:
-   - Item 1 - X calories
-   - Item 2 - Y calories
-3. At the end, provide the **total calorie count** for all items combined.
-4. Additionally, evaluate whether the food items are generally good or bad for health based on their calorie count and nutritional content.
-   - If an item is high in calories, suggest whether it's a healthy choice or not.
-   - If an item is low in calories, suggest if it's beneficial for a healthy diet.
-   - Provide tips for improving the meal's nutritional value (e.g., adding more vegetables, switching to low-fat options).
+
+submit=st.button("Tell me the total calories")
+
+input_prompt = """You are an expert nutritionist. Analyze the food items in the image and give the output in a clear, structured, and detailed format.
+
+For each food item, provide the following fields in order:
+
+- Item
+- Calories (number only)
+- Portion (describe size clearly)
+- Macronutrients:
+     Carbs_g
+     Protein_g
+     Fat_g
+- Category (e.g., vegetable, grain, dairy, meat, seafood, fruit, snack)
+- Health_Risk_Flags (if any)
+- Interesting facts (1–2 detailed sentences about nutrition, benefits, or concerns)
+
+After listing all items, provide:
+
+- TOTAL_CALORIES (sum of all items, number only)
+- Suggestion (2–3 detailed interesting sentences about overall meal quality)
+- OVERALL_MODEL_CONFIDENCE (0–100)
+
+Format your output EXACTLY like this:
+
+1. <name>
+   * Calories: <number>
+   * Portion: <text>
+   * Carbs_g: <number>
+   * Protein_g: <number>
+   * Fat_g: <number>
+   * Category: <text>
+   * Health_Risk_Flags: <text or none>
+   * Interesting facts: <detailed text>
+
+2. <name>
+   * Calories: <number>
+   * Portion: <text>
+   * Carbs_g: <number>
+   * Protein_g: <number>
+   * Fat_g: <number>
+   * Category: <text>
+   * Health_Risk_Flags: <text or none>
+   * Interesting facts: <detailed text>
+
+TOTAL_CALORIES: <number>
+
+Suggestion :<detailed text>
+
+OVERALL_MODEL_CONFIDENCE: <0–100>
 """
 
-# Button to trigger the calorie count prediction
-if st.button("Calculate Total Calories 🍽️"):
-    try:
-        image_data = process_image(uploaded_file)
-        result = get_gemini_response(image_data, nutrition_prompt)
-        st.subheader("Calories and Health Analysis Result 🧠:")
-        st.write(result)
-    except FileNotFoundError:
-        st.error("Please upload an image first.")
-    except Exception as e:
-        st.error(f"An error occurred: {e}")
+## If submit button is clicked
+
+if submit:
+    image_data=input_image_setup(uploaded_file)
+    response=get_gemini_repsonse(input_prompt,image_data,input)
+    st.subheader("The Response is")
+    st.write(response)
